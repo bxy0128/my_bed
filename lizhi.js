@@ -15,7 +15,7 @@ if (body.indexOf('"audition":') !== -1) {
     
     // 尝试等长修改 300 -> 900 (15分钟) 或 300 -> 300 (原地踏步测试)
     // 如果 300 改成 300 依然网络异常，说明接口有 MD5/签名校验，不能改 Body
-    body = body.replace(/"audition":300/g, '"audition":900');
+    body = body.replace(/"audition":300/g, '"audition":300');
     
     // 保持 wk 长度不变
     body = body.replace(/"wk":true/g, '"wk":fals');
