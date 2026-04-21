@@ -1,37 +1,39 @@
 /**
- * 荔枝音频 - 列表属性深度欺骗 (精准等长版)
+ * 荔枝音频 - 全量二进制权限降级 (防止断网 + 绕过鉴权)
  */
-
 let bodyBytes = $response.bodyBytes;
 
 if (bodyBytes) {
-    let uint8View = new Uint8Array(bodyBytes);
-    let strBody = $response.body; // 用于定位
+    let view = new Uint8Array(bodyBytes);
+    let modified = false;
 
-    // 定义替换规则：[搜索关键词, 替换目标, 保持长度]
-    const rules = [
-        ['"userHadBuy":false', '"userHadBuy":true '],
-        ['"accessPermission":4', '"accessPermission":2'],
-        ['"accessType":2', '"accessType":0'],
-        ['"voiceAuditionProperty":300', '"voiceAuditionProperty":000'],
-        ['"voicePrice":60', '"voicePrice":00'],
-        ['"originPrice":60', '"originPrice":00']
-    ];
-
-    rules.forEach(([search, replace]) => {
-        let pos = strBody.indexOf(search);
-        // 使用 while 循环处理列表中可能存在的多个音频项
-        while (pos !== -1) {
-            for (let i = 0; i < replace.length; i++) {
-                uint8View[pos + i] = replace.charCodeAt(i);
-            }
-            console.log(`已成功覆盖字段: ${search}`);
-            // 继续寻找下一个同名标签
-            pos = strBody.indexOf(search, pos + replace.length);
+    // 遍历字节流，寻找权限控制 Tag (0x18, 0x10, 0x04 等关键点)
+    for (let i = 0; i < view.length - 1; i++) {
+        // 1. 寻找 AccessPermission 标记位 (通常在十六进制 18 04 附近)
+        // 将 0x04 (需付费) 强制改为 0x02 (公开)
+        if (view[i] === 0x18 && view[i+1] === 0x04) {
+            view[i+1] = 0x02;
+            modified = true;
         }
-    });
 
-    $done({ bodyBytes: uint8View.buffer });
+        // 2. 寻找 AccessType 标记位 (通常在十六进制 10 02 附近)
+        // 将 0x02 (鉴权模式) 强制改为 0x00 (自由模式)
+        if (view[i] === 0x10 && view[i+1] === 0x02) {
+            view[i+1] = 0x00;
+            modified = true;
+        }
+
+        // 3. 寻找并抹除 audition (试听) 倒计时特征码
+        // 荔枝二进制中试听通常由特定长字节引导，我们尝试将数值位清零
+        if (view[i] === 0x30 && view[i+1] > 0x80) { 
+            // 匹配到高位数值字节，强制抹为 0
+            view[i+1] = 0x00;
+            modified = true;
+        }
+    }
+
+    if (modified) console.log("--- 荔枝二进制权限已全量降级 ---");
+    $done({ bodyBytes: view.buffer });
 } else {
     $done({});
 }
