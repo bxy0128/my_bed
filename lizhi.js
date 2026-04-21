@@ -1,45 +1,41 @@
 /**
- * 荔枝音频 - 5644 接口高稳定性增强版
+ * 荔枝音频 - 详情+列表全能解锁版
  */
 
-const url = $request.url;
 let bodyBytes = $response.bodyBytes;
+if (!bodyBytes) $done({});
 
-// 1. 更加严谨的过滤：只要包含 /5644 且不是空数据就处理
-const isTarget = /\/5644($|\?)/.test(url);
+let view = new Uint8Array(bodyBytes);
+let content = $response.body; // 获取文本形式用于处理 JSON 段
+let modified = false;
 
-if (!isTarget || !bodyBytes) {
-    // 凡是不确定的，通通原封不动放行，确保不影响主页加载
-    $done({ bodyBytes: bodyBytes });
-} else {
-    try {
-        // 使用 slice 拷贝一份内存，防止高并发下多个请求互相干扰
-        let uint8View = new Uint8Array(bodyBytes.slice(0));
-        let modified = false;
-
-        // 字节级循环：寻找权限特征位
-        for (let i = 0; i < uint8View.length - 1; i++) {
-            // 降级 AccessPermission (18 04 -> 18 02)
-            if (uint8View[i] === 0x18 && uint8View[i+1] === 0x04) {
-                uint8View[i+1] = 0x02;
-                modified = true;
-            }
-            // 降级 AccessType (10 02 -> 10 00)
-            if (uint8View[i] === 0x10 && uint8View[i+1] === 0x02) {
-                uint8View[i+1] = 0x00;
-                modified = true;
-            }
-        }
-
-        if (modified) {
-            console.log("--- 5644 接口权限注入成功 ---");
-            $done({ bodyBytes: uint8View.buffer });
-        } else {
-            // 如果没找到特征位，也要原样返回，否则 App 会转圈
-            $done({ bodyBytes: bodyBytes });
-        }
-    } catch (e) {
-        console.log("脚本执行异常，紧急放行: " + e);
-        $done({ bodyBytes: bodyBytes });
+// --- 逻辑 A: 处理二进制 Tag (解决列表角标和进入权限) ---
+for (let i = 0; i < view.length - 2; i++) {
+    // 1. 抹除付费分级 (找到 0x10 0x04 改为 0x10 0x00)
+    if (view[i] === 0x10 && view[i+1] === 0x04) {
+        view[i+1] = 0x00;
+        modified = true;
     }
+    // 2. 抹除精品/独家标记 (针对 0x08 0x02 序列)
+    if (view[i] === 0x08 && view[i+1] === 0x02 && view[i+2] === 0x10) {
+        view[i+1] = 0x00;
+        modified = true;
+    }
+}
+
+// --- 逻辑 B: 处理文本段 (解决 300s 试听限制和购买弹窗) ---
+if (content && content.indexOf('audition') !== -1) {
+    // 1. 将 "audition":300 改为 0 (或者一个极大的数值如 99999)
+    content = content.replace(/"audition":\d+/g, '"audition":0');
+    // 2. 抹除购买人数提示，让 App 认为这是免费音频
+    content = content.replace(/"boughtInfoText":".+?"/g, '"boughtInfoText":""');
+    // 3. 将价格 amount 改为 0
+    content = content.replace(/"amount":\d+/g, '"amount":0');
+    
+    // 如果文本被修改，需要重新转回二进制
+    $done({ body: content });
+} else if (modified) {
+    $done({ bodyBytes: view.buffer });
+} else {
+    $done({});
 }
