@@ -1,39 +1,42 @@
 /**
- * 荔枝音频字节级属性欺骗
+ * 荔枝音频 - 网关模式精准过滤版
  */
+
+const url = $request.url;
+const headers = $request.headers;
 let bodyBytes = $response.bodyBytes;
 
-if (bodyBytes) {
-    let uint8View = new Uint8Array(bodyBytes);
-    let strBody = $response.body; // 仅用于检索位置
+// 1. 尝试从 Header 中寻找接口标识（荔枝常见的标识位）
+// 优先检查 X-Action 或请求路径末尾的 ID
+const apiAction = headers['X-Action'] || headers['action'] || url;
 
-    // 定义需要欺骗的字段及其目标值
-    const modifyMap = {
-        '"audition"': "0",
-        '"amount"': "0",
-        '"is_pay"': "true ", // 加个空格保持5位长度，对齐 false 的长度
-        '"can_play"': "1"
-    };
+// 2. 识别“主播主页”和“用户配置”相关的关键字
+// 如果你观察到主播主页的请求有特定规律，请补充到这个正则里
+const isUserPage = /user|profile|home|follow/i.test(apiAction);
 
-    for (let key in modifyMap) {
-        let pos = strBody.indexOf(key);
-        if (pos !== -1) {
-            let startModify = pos + key.length + 1; // 跳过冒号
-            let targetVal = modifyMap[key];
-            
-            // 执行字节覆盖
-            for (let i = 0; i < targetVal.length; i++) {
-                let currentPos = startModify + i;
-                if (currentPos < uint8View.length) {
-                    // 将目标位置的字节替换为我们伪造的 ASCII 码
-                    uint8View[currentPos] = targetVal.charCodeAt(i);
-                }
-            }
-            console.log(`字段欺骗成功: ${key}`);
+// 3. 逻辑判断
+if (isUserPage || !bodyBytes) {
+    // 如果是主播主页相关，或者是心跳包，直接放行，不做任何字节修改
+    console.log(`放行非音频接口: ${apiAction}`);
+    $done({ bodyBytes: bodyBytes });
+} else {
+    // 只有非主页接口（假定为音频列表/详情）才执行字节修改
+    let view = new Uint8Array(bodyBytes);
+    let modified = false;
+
+    for (let i = 0; i < view.length - 1; i++) {
+        // 降低权限位 (0x18 0x04 -> 0x18 0x02)
+        if (view[i] === 0x18 && view[i+1] === 0x04) {
+            view[i+1] = 0x02;
+            modified = true;
+        }
+        // 降低类型位 (0x10 0x02 -> 0x10 0x00)
+        if (view[i] === 0x10 && view[i+1] === 0x02) {
+            view[i+1] = 0x00;
+            modified = true;
         }
     }
 
-    $done({ bodyBytes: uint8View.buffer });
-} else {
-    $done({});
+    if (modified) console.log(`音频接口已降级: ${apiAction}`);
+    $done({ bodyBytes: view.buffer });
 }
