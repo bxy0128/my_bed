@@ -1,24 +1,26 @@
 /*
-脚本功能：荔枝 App 解锁试听限制
+* 荔枝 App 脚本 - 适配 Protobuf
 */
 
 let body = $response.body;
 
-if (body) {
-    // 1. 将试听秒数从 210 (或任何数字) 修改为 0 (代表无限制或欺骗 App)
-    // 同时也尝试改为一个超大数字 99999
-    body = body.replace(/"audition":\d+/g, '"audition":0');
+if (typeof body !== 'undefined' && body !== null) {
+    // 1. 移除/修改试听限制 (audition)
+    // 匹配 "audition":210 这种结构，将其改为 0 或极大值
+    body = body.replace(/"audition":\s?\d+/g, '"audition":0');
     
-    // 2. 将金额改为 0
-    body = body.replace(/"amount":\d+/g, '"amount":0');
+    // 2. 修改金额 (amount)
+    body = body.replace(/"amount":\s?\d+/g, '"amount":0');
     
-    // 3. 修改已购买状态（基于你之前看到的 is_pay）
-    body = body.replace(/"is_pay":\s?false/g, '"is_pay":true');
-    body = body.replace(/"can_play":\s?0/g, '"can_play":1');
-    
-    // 4. 针对 Protobuf 的二进制特征（可选）
-    // 有时直接替换文本能生效，因为 QX 会尝试将响应体转为字符串处理
-    console.log("荔枝鉴权已修改");
-}
+    // 3. 强制解锁购买状态 (is_pay / is_bought)
+    body = body.replace(/"is_pay":\s?false/g, '"is_pay":true')
+               .replace(/"is_bought":\s?false/g, '"is_bought":true')
+               .replace(/"can_play":\s?0/g, '"can_play":1');
 
-$done({ body });
+    // 4. (可选) 针对你抓到的 boughtInfoText 进行美化
+    body = body.replace(/"boughtInfoText":\s?".*?"/g, '"boughtInfoText":"已成功解锁"');
+
+    $done({ body });
+} else {
+    $done({});
+}
