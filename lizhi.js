@@ -1,20 +1,20 @@
 /**
- * 荔枝账户余额注入
+ * 荔枝 5641 精准正则替换
  */
 
 let body = $response.body;
 
 if (body) {
-    // 1. 修改余额 (0.0 -> 999.0)
-    // 尽量保持长度接近。如果 999.0 报错，就改回 9.00
-    if (body.indexOf('"balance":"0.0"') !== -1) {
-        console.log("检测到贫穷，正在注入金币...");
-        body = body.replace(/"balance":"0.0"/g, '"balance":"999.0"');
+    // 这里使用了真正的正则表达式 /.../
+    // 它能识别任何数字 ID，并将其替换为 {}
+    let regex = /\{"audition":\d+,"amount":\d+,"voiceId":\d+\}/g;
+    
+    if (regex.test(body)) {
+        console.log("成功匹配到付费 JSON 块，正在执行正则替换...");
+        // 执行替换，后面加空格是为了对齐长度，防止 App 网络异常
+        body = body.replace(regex, "{}                                   ");
     }
     
-    // 2. 备用：修改 RCode 确保请求是“成功”的
-    body = body.replace(/"rCode":\d+/g, '"rCode":0');
-
     $done({ body });
 } else {
     $done({});
