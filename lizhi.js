@@ -14,7 +14,7 @@ if (body) {
 
     // 2. 将 wk 状态原地翻转 (true -> fals 保持长度，防止这个接口也崩)
     if (body.indexOf('"wk":true') !== -1) {
-        body = body.replace(/"wk":true/g, '"wk":fals');
+        body = body.replace(/"wk":true/g, '"wk":false');
     }
 
     // 3. 将所有涉及试听 300 秒的数值抹除 (如果这个包里也有的话)
