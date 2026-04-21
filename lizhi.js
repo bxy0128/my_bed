@@ -18,7 +18,6 @@ if (body.indexOf('"audition":') !== -1) {
     body = body.replace(/"audition":300/g, '"audition":300');
     
     // 保持 wk 长度不变
-    body = body.replace(/"wk":true/g, '"wk":fals');
     
     $done({ body });
 } else {
