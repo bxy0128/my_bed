@@ -1,14 +1,39 @@
 /**
- * 荔枝二进制兼容测试
- * 使用 bodyBytes 避免字符串转换导致的结构损坏
+ * 荔枝音频字节级属性欺骗
  */
+let bodyBytes = $response.bodyBytes;
 
-let bytes = $response.bodyBytes;
+if (bodyBytes) {
+    let uint8View = new Uint8Array(bodyBytes);
+    let strBody = $response.body; // 仅用于检索位置
 
-if (bytes) {
-    console.log("检测到原始字节流，长度: " + bytes.byteLength);
-    // 此时我们不进行任何 replace 操作，只原样返回原始字节
-    $done({ bodyBytes: bytes });
+    // 定义需要欺骗的字段及其目标值
+    const modifyMap = {
+        '"audition"': "0",
+        '"amount"': "0",
+        '"is_pay"': "true ", // 加个空格保持5位长度，对齐 false 的长度
+        '"can_play"': "1"
+    };
+
+    for (let key in modifyMap) {
+        let pos = strBody.indexOf(key);
+        if (pos !== -1) {
+            let startModify = pos + key.length + 1; // 跳过冒号
+            let targetVal = modifyMap[key];
+            
+            // 执行字节覆盖
+            for (let i = 0; i < targetVal.length; i++) {
+                let currentPos = startModify + i;
+                if (currentPos < uint8View.length) {
+                    // 将目标位置的字节替换为我们伪造的 ASCII 码
+                    uint8View[currentPos] = targetVal.charCodeAt(i);
+                }
+            }
+            console.log(`字段欺骗成功: ${key}`);
+        }
+    }
+
+    $done({ bodyBytes: uint8View.buffer });
 } else {
     $done({});
 }
