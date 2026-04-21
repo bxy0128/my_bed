@@ -1,31 +1,35 @@
 /**
- * 荔枝音频字节级解锁 (防止断网)
+ * 荔枝音频 - 列表属性深度欺骗 (精准等长版)
  */
 
 let bodyBytes = $response.bodyBytes;
 
 if (bodyBytes) {
     let uint8View = new Uint8Array(bodyBytes);
-    let strBody = $response.body; // 仅用于定位，不修改
+    let strBody = $response.body; // 用于定位
 
-    // 搜索 "audition" 对应的字节序列 (61 75 64 69 74 69 6f 6e)
-    let key = "audition";
-    let pos = strBody.indexOf(key);
+    // 定义替换规则：[搜索关键词, 替换目标, 保持长度]
+    const rules = [
+        ['"userHadBuy":false', '"userHadBuy":true '],
+        ['"accessPermission":4', '"accessPermission":2'],
+        ['"accessType":2', '"accessType":0'],
+        ['"voiceAuditionProperty":300', '"voiceAuditionProperty":000'],
+        ['"voicePrice":60', '"voicePrice":00'],
+        ['"originPrice":60', '"originPrice":00']
+    ];
 
-    if (pos !== -1) {
-        // 在字节流中找到 audition 后面紧跟的数值区域
-        // 我们在原字节数组上直接修改，不改变数组长度，不破坏偏移
-        for (let i = pos; i < pos + 30; i++) {
-            // 寻找数字的 ASCII 码 (48-57 对应 0-9)
-            // 将试听秒数数值位强制改为 0 (ASCII 48)
-            if (uint8View[i] >= 48 && uint8View[i] <= 57) {
-                uint8View[i] = 48; 
+    rules.forEach(([search, replace]) => {
+        let pos = strBody.indexOf(search);
+        // 使用 while 循环处理列表中可能存在的多个音频项
+        while (pos !== -1) {
+            for (let i = 0; i < replace.length; i++) {
+                uint8View[pos + i] = replace.charCodeAt(i);
             }
-            // 碰到逗号或右括号停止，防止改过头
-            if (uint8View[i] === 44 || uint8View[i] === 125) break;
+            console.log(`已成功覆盖字段: ${search}`);
+            // 继续寻找下一个同名标签
+            pos = strBody.indexOf(search, pos + replace.length);
         }
-        console.log("字节级修改完成：audition -> 0");
-    }
+    });
 
     $done({ bodyBytes: uint8View.buffer });
 } else {
