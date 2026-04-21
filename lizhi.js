@@ -1,21 +1,16 @@
 /**
- * 荔枝 5641 精准正则替换
+ * 荔枝 5641 零损伤脚本
  */
-
 let body = $response.body;
 
-if (body) {
-    // 这里使用了真正的正则表达式 /.../
-    // 它能识别任何数字 ID，并将其替换为 {}
-    let regex = /\{"audition":\d+,"amount":\d+,"voiceId":\d+\}/g;
-    
-    if (regex.test(body)) {
-        console.log("成功匹配到付费 JSON 块，正在执行正则替换...");
-        // 执行替换，后面加空格是为了对齐长度，防止 App 网络异常
-        body = body.replace(regex, "{}                                   ");
-    }
-    
-    $done({ body });
+// 如果是免费包，里面搜不到 audition，直接 $done({})，不碰任何数据
+if (!body || body.indexOf("audition") === -1) {
+    // 关键：这里直接写空，QX 会原封不动地转发原始二进制包，不产生任何破坏
+    $done({}); 
 } else {
-    $done({});
+    // 只有付费包（含有 audition）才进入这个逻辑
+    console.log("付费包，尝试等长替换...");
+    // 这里的空格数量必须和原始 JSON 字符串完全一致
+    body = body.replace(/\{"audition":\d+,"amount":60,"voiceId":\d+\}/g, '{"audition":0}                                 ');
+    $done({ body });
 }
