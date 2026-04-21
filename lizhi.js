@@ -1,27 +1,29 @@
 /**
- * 荔枝 5641 保护版 - 仅针对付费包修改，不误伤免费包
+ * 荔枝 5763 专项 - 报警器解除版
  */
 
 let body = $response.body;
 
-// 保险丝 1：如果 body 为空或者是纯二进制乱码（不含 JSON 关键字），直接放行
-if (!body || body.indexOf('{') === -1) {
-    $done({});
-}
+if (body) {
+    // 1. 找到那个触发 App 切歌的报错文字，将其替换为空
+    // 这样即便 App 判定你没买，它也找不到“阻断指令”
+    if (body.indexOf("你暂未支持该声音") !== -1) {
+        console.log("检测到阻断指令，正在物理切除...");
+        body = body.replace(/你暂未支持该声音/g, "");
+    }
 
-// 保险丝 2：只有检测到包含 "audition" 限制的包才执行修改
-if (body.indexOf('"audition":') !== -1) {
-    console.log("检测到付费限制包，执行精准修改...");
+    // 2. 将 wk 状态原地翻转 (true -> fals 保持长度，防止这个接口也崩)
+    if (body.indexOf('"wk":true') !== -1) {
+        body = body.replace(/"wk":true/g, '"wk":fals');
+    }
+
+    // 3. 将所有涉及试听 300 秒的数值抹除 (如果这个包里也有的话)
+    body = body.replace(/"audition":300/g, '"audition":000');
     
-    // 尝试等长修改 300 -> 900 (15分钟) 或 300 -> 300 (原地踏步测试)
-    // 如果 300 改成 300 依然网络异常，说明接口有 MD5/签名校验，不能改 Body
-    body = body.replace(/"audition":300/g, '"audition":300');
-    
-    // 保持 wk 长度不变
-    
+    // 4. 将金额 60 改为 00
+    body = body.replace(/"amount":60/g, '"amount":00');
+
     $done({ body });
 } else {
-    // 如果是免费音频（包里没 audition），直接原样返回，不做任何操作
-    console.log("检测为普通包/免费包，原样放行，防止误伤");
     $done({});
 }
