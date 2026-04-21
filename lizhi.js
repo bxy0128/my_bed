@@ -1,10 +1,10 @@
-/**
- * 荔枝通路测试脚本 (不修改数据)
- */
-
-// 打印日志，带上时间戳方便辨别
-console.log("--- 荔枝通路测试成功 ---");
-console.log("拦截到的 URL: " + $request.url);
-
-// 原封不动传回数据，不做任何 replace
-$done({});
+let body = $response.body;
+if (body) {
+    // 1. 只改 audition，不改 status。将数字改为 0，但在前面补位以维持部分结构稳定
+    // 尝试最简单的精准匹配
+    if (body.indexOf('"audition":') !== -1) {
+        body = body.replace(/"audition":\d+/g, '"audition":0');
+        console.log("已尝试原地修改试听字段");
+    }
+}
+$done({ body });
