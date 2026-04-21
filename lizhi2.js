@@ -1,42 +1,42 @@
 /**
- * 荔枝音频 - 网关模式精准过滤版
+ * 荔枝音频 5644 接口精准解锁 (彻底修复主页白屏)
  */
 
 const url = $request.url;
-const headers = $request.headers;
 let bodyBytes = $response.bodyBytes;
 
-// 1. 尝试从 Header 中寻找接口标识（荔枝常见的标识位）
-// 优先检查 X-Action 或请求路径末尾的 ID
-const apiAction = headers['X-Action'] || headers['action'] || url;
-
-// 2. 识别“主播主页”和“用户配置”相关的关键字
-// 如果你观察到主播主页的请求有特定规律，请补充到这个正则里
-const isUserPage = /user|profile|home|follow/i.test(apiAction);
-
-// 3. 逻辑判断
-if (isUserPage || !bodyBytes) {
-    // 如果是主播主页相关，或者是心跳包，直接放行，不做任何字节修改
-    console.log(`放行非音频接口: ${apiAction}`);
+if (url.indexOf('/5644') === -1 || !bodyBytes) {
     $done({ bodyBytes: bodyBytes });
 } else {
-    // 只有非主页接口（假定为音频列表/详情）才执行字节修改
     let view = new Uint8Array(bodyBytes);
     let modified = false;
 
-    for (let i = 0; i < view.length - 1; i++) {
-        // 降低权限位 (0x18 0x04 -> 0x18 0x02)
-        if (view[i] === 0x18 && view[i+1] === 0x04) {
-            view[i+1] = 0x02;
+    // 1. 寻找付费独有的特征序列并降级
+    // 我们寻找 0x18 0x27 (付费 Tag) 或 0x08 0x02 (限制等级)
+    for (let i = 0; i < view.length - 2; i++) {
+        
+        // 核心修改 1：将 AccessLevel 从 0x02 (付费) 改为 0x01 (免费)
+        // 特征码通常是 0x08 0x02 后面跟着 0x10 0x04
+        if (view[i] === 0x08 && view[i+1] === 0x02 && view[i+2] === 0x10) {
+            view[i+1] = 0x01; // 改为免费等级
+            if (view[i+3] === 0x04) view[i+3] = 0x00; // 抹掉价格
             modified = true;
         }
-        // 降低类型位 (0x10 0x02 -> 0x10 0x00)
-        if (view[i] === 0x10 && view[i+1] === 0x02) {
-            view[i+1] = 0x00;
+
+        // 核心修改 2：精准抹除独家/精品标记位 (防止 App 弹出购买弹窗)
+        // 查找二进制中的 0x18 0x27 (27 是 ASCII 的 ' 字符，对应你提供的付费样本)
+        if (view[i] === 0x18 && view[i+1] === 0x27) {
+            view[i+1] = 0x00; 
             modified = true;
         }
     }
 
-    if (modified) console.log(`音频接口已降级: ${apiAction}`);
-    $done({ bodyBytes: view.buffer });
+    // 2. 修复主页白屏：如果检测到是主页头部信息，不做深度过滤
+    // 主页头部通常较短，音频列表通常很长。
+    if (view.length < 500) {
+        $done({ bodyBytes: bodyBytes });
+    } else {
+        if (modified) console.log("--- 荔枝 5644 列表权限已重置 ---");
+        $done({ bodyBytes: view.buffer });
+    }
 }
